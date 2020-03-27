@@ -42,7 +42,7 @@ PRE_BACKUP_COMMAND=
 POST_BACKUP_COMMAND=
 LOG_TIMESTAMP="yes"
 USE_ISO8601_TIMESTAMPS="no"
-PGOWNER=`id -un`
+PGOWNER=$(id -un)
 OVERWRITE="no"
 RESTORE_COMMAND=
 RESTORE_MODE="recovery"
@@ -66,7 +66,7 @@ SYSLOG_FACILITY="local0"
 SYSLOG_IDENT="postgres"
 
 BACKUP_ENCRYPT="no"
-ARCHIVE_ENCRYPT="no"
+#ARCHIVE_ENCRYPT="no"
 GPG_ENCRYPT_KEYS=""
 GPG_BIN="/usr/bin/gpg"
 
@@ -77,23 +77,25 @@ out_rc=0
 rsync_opts=""
 
 usage() {
+	local script_name
+	script_name="$(basename "${0}")"
 	case $1 in
 		list)
-			echo "`basename $0` list - Display information about backups"
+			echo "${script_name} list - Display information about backups"
 			echo
-			echo "usage: `basename $0` list [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${script_name} list [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -v              Display details of the backup"
 			echo
 			echo "    -?              Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		backup)
-			echo "`basename $0` backup - Perform a base backup"
+			echo "${script_name} backup - Perform a base backup"
 			echo
-			echo "usage: `basename $0` backup [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${script_name} backup [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -D dir               Path to \$PGDATA"
@@ -113,12 +115,12 @@ usage() {
 			echo
 			echo "    -?                   Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		restore)
-			echo "`basename $0` restore - Restore a base backup and prepare PITR"
+			echo "${script_name} restore - Restore a base backup and prepare PITR"
 			echo
-			echo "usage: `basename $0` restore [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${script_name} restore [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo " options:"
 			echo "    -D dir               Path to target \$PGDATA"
@@ -138,12 +140,12 @@ usage() {
 			echo
 			echo "    -?                   Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		purge)
-			echo "`basename $0` purge - Clean old base backups and archived WAL files"
+			echo "${script_name} purge - Clean old base backups and archived WAL files"
 			echo
-			echo "usage: `basename $0` purge [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${script_name} purge [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -m count               Keep this number of backups"
@@ -156,12 +158,12 @@ usage() {
 			echo "    -T                     Timestamp log messages"
 			echo "    -?                     Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		check)
-			echo "`basename $0` check - Verify configuration and backups integrity"
+			echo "${script_name} check - Verify configuration and backups integrity"
 			echo
-			echo "usage: `basename $0` check [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${script_name} check [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -C conf                Configuration file"
@@ -178,12 +180,12 @@ usage() {
 			echo
 			echo "    -?                     Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		configure)
-			echo "`basename $0` configure - Create a configuration file from the command line"
+			echo "${script_name} configure - Create a configuration file from the command line"
 			echo
-			echo "usage: `basename $0` configure [options] [[user@]host:]/path/to/backups"
+			echo "usage: ${script_name} configure [options] [[user@]host:]/path/to/backups"
 			echo
 			echo "options:"
 			echo "    -o config_file         Output configuration file"
@@ -206,24 +208,24 @@ usage() {
 			echo
 			echo "    -?                     Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		help)
-			echo "`basename $0` help - Print help, optionnally for an action"
+			echo "${script_name} help - Print help, optionnally for an action"
 			echo
-			echo "usage: `basename $0` help [options] [action]"
+			echo "usage: ${script_name} help [options] [action]"
 			echo
 			echo "options:"
 			echo "    -?                     Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 	esac
 
 	# Fallback to the main command usage
-	echo "`basename $0` $version - PostgreSQL Point In Time Recovery made easy"
+	echo "${script_name} $version - PostgreSQL Point In Time Recovery made easy"
 	echo
-	echo "usage: `basename $0` [options] action [args]"
+	echo "usage: ${script_name} [options] action [args]"
 	echo
 	echo "options:"
 	echo "    -f file      Path to the configuration file"
@@ -240,7 +242,7 @@ usage() {
 	echo "    configure - Create a configuration file from the command line"
 	echo "    help - Print help, optionnally for an action"
 	echo
-	exit ${2:-0}
+	exit "${2:-0}"
 }
 
 # Apply an extra level of shell quoting to each of the arguments passed.
@@ -251,7 +253,7 @@ usage() {
 # which should not be interpreted or cause word-splitting on the remote side.
 qw() {
 	printf -v out "%q " "$@"
-	echo ${out%?}  # Skip the final space.
+	echo "${out%?}"  # Skip the final space.
 }
 
 can_cleanup="no"
@@ -295,7 +297,7 @@ cleanup() {
 
 # Messaging functions
 now() {
-	[ "$LOG_TIMESTAMP" = "yes" ] && echo "$(date "+%F %T %Z ")"
+	[ "$LOG_TIMESTAMP" = "yes" ] &&  date "+%F %T %Z "
 }
 
 die() {
@@ -321,6 +323,7 @@ info() {
 load_config() {
 	# Load the configuration file
 	if [ -f "$config" ]; then
+		# shellcheck source=tests/config.sh
 		. "$config"
 
 		# Export libpq variables sourced from the configuration file
@@ -402,7 +405,7 @@ parse_target_uri() {
 		archive_local="no"
 
 		# Wrap IPv6 addresses with brackets
-		echo $archive_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
+		echo "${archive_host}" | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
 
 		# Add a shortcut for ssh/rsync commands
 		archive_ssh_target="${archive_user:+$archive_user@}$archive_host"
@@ -474,43 +477,41 @@ stop_backup() {
 
 	# Tell PostgreSQL the backup is done
 	info "stopping the backup process"
-	if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
+	if (( pg_version >= 90600 )) && (( BASH_VERSINFO[0] >= 4 )); then
 
 		# We have to parse the multiple column output of
 		# pg_stop_backup(), so change the field separator to , so that
 		# the pipe does not conflict with the output from
 		# get_psql_output, which uses pipes for newline (newlines get
 		# lost when storing the output as a string)
-		echo '\pset fieldsep ,' >&${COPROC[1]}
+		echo '\pset fieldsep ,' >&"${COPROC[1]}"
 		get_psql_output > /dev/null
 
-		echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&${COPROC[1]}
-		if [ $? != 0 ]; then
-			check_psql_stderr || cat $psql_stderr
+		if echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&"${COPROC[1]}"; then
+			check_psql_stderr || cat "${psql_stderr}"
 			die_and_hook "could not stop backup process"
 		fi
 
 		result=$(get_psql_output)
 		if [ -z "$result" ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "${psql_stderr}"
 			die_and_hook "error while stopping the backup process"
 		fi
 
-		echo '\pset fieldsep |' >&${COPROC[1]}
+		echo '\pset fieldsep |' >&"${COPROC[1]}"
 		get_psql_output > /dev/null
 
 		# We need a stop time for the backup to make the automatic
 		# time-based selection of the backup. The stop time is not
 		# part of the output of pg_stop_backup().
-		echo "select to_char(now(), 'YYYY-MM-DD HH24:MI:SS TZ');" >&${COPROC[1]}
-		if [ $? != 0 ]; then
-			check_psql_stderr || cat $psql_stderr
+		if echo "select to_char(now(), 'YYYY-MM-DD HH24:MI:SS TZ');" >&$"{COPROC[1]}"; then
+			check_psql_stderr || cat "${psql_stderr}"
 			die_and_hook "could not get the stop time of the backup"
 		fi
 
 		stop_time=$(get_psql_output)
 		if [ -z "$stop_time" ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "${psql_stderr}"
 			die_and_hook "could not get the stop time of the backup"
 		fi
 
@@ -549,7 +550,8 @@ check_and_fix_directory() {
 			info "creating $dir with permission 0700"
 			# Note that if this creates any parent directories, their mode will be set
 			# according to the current umask, only the final leaf dir will be set 0700.
-			mkdir -p -m 700 -- "$dir" || die "could not create $dir"
+			# shellcheck disable=SC2174
+			mkdir -p -m 700 -- "${dir}" || die "could not create ${dir}"
 		fi
 	else
 		# Check if directory is empty
@@ -570,7 +572,7 @@ check_and_fix_directory() {
 				# diffs.
 				if [ "$STORAGE" = "tar" ]; then
 					info "Removing contents of $dir"
-					rm -rf -- "$dir/"*
+					rm -rf -- "${dir:?}/"*
 				fi
 			else
 				if [ "$OVERWRITE" = "yes" ]; then
@@ -586,7 +588,7 @@ check_and_fix_directory() {
 		fi
 
 		# Check permissions
-		dperms=`stat -c %a -- "$dir" 2>/dev/null` || die "Unable to get permissions of $dir"
+		dperms=$(stat -c %a -- "$dir" 2>/dev/null) || die "Unable to get permissions of $dir"
 
 		if [ "$dperms" != "700" ]; then
 			if [ "$dry_run" != "yes" ]; then
@@ -598,10 +600,10 @@ check_and_fix_directory() {
 
 	if [ "$dry_run" != "yes" ]; then
 		# Check owner
-		downer=`stat -c %U -- "$dir" 2>/dev/null` || die "Unable to get owner of $dir"
+		downer=$(stat -c %U -- "$dir" 2>/dev/null) || die "Unable to get owner of $dir"
 
 		if [ "$downer" != "$PGOWNER" ]; then
-			if [ "`id -u`" = 0 ]; then
+			if [ "$(id -u)" = 0 ]; then
 				info "setting owner of $dir"
 				chown -- "$PGOWNER:" "$dir" || die "could not change owner of $dir to $PGOWNER"
 			else
@@ -638,15 +640,12 @@ check_remote_directory() {
 	local dest_isdir
 	local dest_writable
 
-	dest_exists=$(ssh -n -- "$ssh_target" "[ -e $(qw "$dest_dir") ] || echo 'ko'")
-	if [ $? = 0 ]; then
+	if dest_exists=$(ssh -n -- "$ssh_target" "[ -e $(qw "$dest_dir") ] || echo 'ko'"); then
 		if [ ! -n "$dest_exists" ]; then
-			dest_isdir=$(ssh -n -- "$ssh_target" "[ -d $(qw "$dest_dir") ] || echo 'ko'")
-			if [ $? = 0 ]; then
+			if dest_isdir=$(ssh -n -- "$ssh_target" "[ -d $(qw "$dest_dir") ] || echo 'ko'"); then
 				if [ ! -n "$dest_isdir" ]; then
 					info "target directory '$dest_dir' exists"
-					dest_writable=$(ssh -n -- "$ssh_target" "[ -w $(qw "$dest_dir") ] || echo 'ko'")
-					if [ $? = 0 ]; then
+					if dest_writable=$(ssh -n -- "$ssh_target" "[ -w $(qw "$dest_dir") ] || echo 'ko'"); then
 						if [ ! -n "$dest_writable" ]; then
 							info "target directory '$dest_dir' is writable"
 						else
@@ -974,6 +973,12 @@ init_rsync_opts() {
 	fi
 }
 
+################################################################################
+# main part - first we check if the script has been sourced or called directly
+# The purpose is to split  the function and the "main" part of this script
+# that way we can test our function each by one
+################################################################################
+if [ "$0" = "$BASH_SOURCE" ]; then
 while getopts "c:f:lV?" opt; do
 	case $opt in
 		c|f)
@@ -4549,5 +4554,5 @@ EOF
 		error "unknown action"
 		;;
 esac
-
 exit $out_rc
+fi
