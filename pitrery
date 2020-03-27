@@ -487,7 +487,7 @@ stop_backup() {
 		echo '\pset fieldsep ,' >&"${COPROC[1]}"
 		get_psql_output > /dev/null
 
-		if echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&"${COPROC[1]}"; then
+		if ! echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&"${COPROC[1]}"; then
 			check_psql_stderr || cat "${psql_stderr}"
 			die_and_hook "could not stop backup process"
 		fi
@@ -504,7 +504,7 @@ stop_backup() {
 		# We need a stop time for the backup to make the automatic
 		# time-based selection of the backup. The stop time is not
 		# part of the output of pg_stop_backup().
-		if echo "select to_char(now(), 'YYYY-MM-DD HH24:MI:SS TZ');" >&$"{COPROC[1]}"; then
+		if ! echo "select to_char(now(), 'YYYY-MM-DD HH24:MI:SS TZ');" >&$"{COPROC[1]}"; then
 			check_psql_stderr || cat "${psql_stderr}"
 			die_and_hook "could not get the stop time of the backup"
 		fi
@@ -747,14 +747,14 @@ check_postgresql_config() {
 
 		# Check configuration of PostgreSQL
 		info "current configuration:"
-		if (( $pg_version >= 90000 )); then
+		if (( pg_version >= 90000 )); then
 			if ! wal_level=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_level';" -- "$psql_condb"); then
 				error "could not get the get the value of wal_level"
 			fi
 			info "  wal_level = $wal_level"
 		fi
 
-		if (( $pg_version >= 80300 )); then
+		if (( pg_version >= 80300 )); then
 			if ! archive_mode=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'archive_mode';" -- "$psql_condb"); then
 				error "could not get the get the value of archive_mode"
 			fi
@@ -781,9 +781,9 @@ check_postgresql_config() {
 		fi
 
 		# wal_level must be different than minimal
-		if [ -n "$wal_level" ] && [ $wal_level = "minimal" ]; then
-			if (( $pg_version >= 90000 )); then
-				if (( $pg_version < 90600 )); then
+		if [ -n "$wal_level" ] && [ "$wal_level" = "minimal" ]; then
+			if (( pg_version >= 90000 )); then
+				if (( pg_version < 90600 )); then
 					error "wal_level must be set at least to archive"
 				else
 					# archive and hot_standby levels have been merged into
@@ -793,7 +793,7 @@ check_postgresql_config() {
 			fi
 		fi
 
-		if [ -n "$archive_mode" ] && [ $archive_mode = "off" ]; then
+		if [ -n "$archive_mode" ] && [ "$archive_mode" = "off" ]; then
 			error "archive_mode must be set to on"
 		fi
 
@@ -825,7 +825,8 @@ output_param() {
 	echo "${param}=\"${value}\""
 
 	if [ -n "$file" ]; then
-		local tmpfile=$(mktemp -t pitr_config_sed.XXXXXXXXXX) ||
+		local tmpfile
+		tmpfile=$(mktemp -t pitr_config_sed.XXXXXXXXXX) ||
 			error "Failed to create temporary file"
 
 		# Replace the parameter with sed, the value is quoted so that
@@ -838,16 +839,15 @@ output_param() {
 		# sed that replaces the values inside the configuration puts
 		# double quote around the value it will prevent source from
 		# interpreting $ starting strings correctly.
-		echo "$v" | grep '^\$' >/dev/null 2>&1
-		if [ $? = 0 ]; then
-			cat "$file" | sed -re "s/^#${param}=.*/${param}=${v//\//\\/}/" > "$tmpfile" ||
+		if ! echo "$v" | grep '^\$' >/dev/null 2>&1; then
+			sed -re "s/^#${param}=.*/${param}=${v//\//\\/}/" "${file}" > "$tmpfile" ||
 				error "Cannot change parameter in configuration file"
 		else
-			cat "$file" | sed -re "s/^#${param}=.*/${param}=\"${v//\//\\/}\"/" > "$tmpfile" ||
+			sed -re "s/^#${param}=.*/${param}=\"${v//\//\\/}\"/" "${file}"> "$tmpfile" ||
 				error "Cannot change parameter in configuration file"
 		fi
 
-		mv "$tmpfile" "$file" || error "Cannot rename tmpfile to configuration file"
+		mv "${tmpfile}" "${file}" || error "Cannot rename tmpfile to configuration file"
 	fi
 }
 
@@ -862,8 +862,8 @@ list_output_indent() {
 			else
 				echo
 			fi
-					if (( $indent_spc > 0 )); then
-			printf ' %.0s' $(seq 1 $indent_spc)
+			if (( indent_spc > 0 )); then
+				printf ' %.0s' $(seq 1 $indent_spc)
 		fi
 	fi
 }
@@ -874,7 +874,7 @@ list_output_start_hash() {
 			list_output_indent
 			# wrap the lower cased input with double quote before opening
 			echo -n "${1:+"\"${1,,}\": "}{"
-			indent_spc=$(($indent_spc + 2))
+			indent_spc=$((indent_spc + 2))
 			;;
 		*)
 			if [ -n "$1" ]; then
@@ -888,7 +888,7 @@ list_output_end_hash() {
 	case "$output" in
 		"json")
 			comma="no"
-			(( ${indent_spc:-0} >= 2 )) && indent_spc=$(($indent_spc - 2))
+			(( ${indent_spc:-0} >= 2 )) && indent_spc=$((indent_spc - 2))
 			list_output_indent
 			echo -n "}"
 			comma="yes"
@@ -941,7 +941,7 @@ list_output_start_list() {
 		"json")
 			list_output_indent
 			echo -n "${1:+"\"${1,,}\": "}["
-			[ -n "$1" ] && indent_spc=$(($indent_spc + 2))
+			[ -n "$1" ] && indent_spc=$((indent_spc + 2))
 			;;
 	esac
 }
@@ -950,7 +950,7 @@ list_output_end_list() {
 	case "$output" in
 		"json")
 			comma="no"
-			(( ${indent_spc:-0} >= 2 )) && indent_spc=$(($indent_spc - 2))
+			(( ${indent_spc:-0} >= 2 )) && indent_spc=$((indent_spc - 2))
 			list_output_indent
 			echo -n "]"
 			comma="yes"
@@ -978,7 +978,7 @@ init_rsync_opts() {
 # The purpose is to split  the function and the "main" part of this script
 # that way we can test our function each by one
 ################################################################################
-if [ "$0" = "$BASH_SOURCE" ]; then
+if [ "$0" = "${BASH_SOURCE}" ]; then
 while getopts "c:f:lV?" opt; do
 	case $opt in
 		c|f)
@@ -988,7 +988,7 @@ while getopts "c:f:lV?" opt; do
 		l) # List the configuration files and exit
 			info "listing configuration files in $config_dir"
 			if [ -d "$config_dir" ]; then
-				find "$config_dir" -mindepth 1 -maxdepth 1 -name '*.conf' | xargs -i basename '{}' .conf
+				find "$config_dir" -mindepth 1 -maxdepth 1 -name '*.conf' -print0 | xargs -i basename '{}' .conf
 			fi
 			exit 0
 			;;
@@ -1009,7 +1009,7 @@ if (( $# < 1 )); then
 fi
 
 action=${@:$OPTIND:1}
-OPTIND=$(( $OPTIND + 1 ))
+OPTIND=$(( OPTIND + 1 ))
 
 # Process the help action as soon as possible, it boils down to
 # printing usage and exiting
@@ -1032,7 +1032,6 @@ if [[ $config != */* ]]; then
 fi
 
 
-opts=()
 case $action in
 	list)
 		load_config
@@ -1098,7 +1097,7 @@ case $action in
 
 				list_output_json "directory" "$dir"
 			else
-				echo -ne "$dir\t"
+				echo -ne "$dir\\t"
 			fi
 
 			# Compute the size of full backup
@@ -1114,7 +1113,7 @@ case $action in
 					list_output_text "  space used" "$backup_size"
 					list_output_json "space_used" "$backup_size"
 				else
-					echo -ne "$backup_size\t"
+					echo -ne "$backup_size\\t"
 				fi
 			else
 				error "could not find size of $dir"
@@ -1359,11 +1358,11 @@ case $action in
 		fi
 
 		# Prepare the text will put in the backup_label
-		label_text="pitrery_${version}_`date +%s`"
+		label_text="pitrery_${version}_$(date +%s)"
 
 		# Prepare psql command line. Starting from 9.6 .psqlrc is sourced with
 		# psql -c or -f, so we force -X
-		psql_command=( "$PGPSQL" "-X" )
+		psql_command=( "${PGPSQL}" "-X" )
 		[ -n "$dbhost" ] && psql_command+=( "-h" "$dbhost" )
 		[ -n "$dbport" ] && psql_command+=( "-p" "$dbport" )
 		[ -n "$dbuser" ] && psql_command+=( "-U" "$dbuser" )
@@ -1375,7 +1374,7 @@ case $action in
 		# Exports for both the pre and post backup hooks.
 		export PITRERY_HOOK="pre_backup"
 		export PITRERY_BACKUP_DIR=$backup_dir
-		export PITRERY_PSQL="${psql_command[@]}"
+		export PITRERY_PSQL="${psql_command[*]}"
 		export PITRERY_DATABASE=$psql_condb
 		export PITRERY_BACKUP_LOCAL=$backup_local
 		export PITRERY_SSH_TARGET=$backup_ssh_target
@@ -1404,13 +1403,13 @@ case $action in
 			if [ "$standby" = "t" ]; then
 				# Starting from 9.6 it is possible to backup from a standby
 				# using an non-exclusive backup
-				if (( $pg_version < 90600 )); then
+				if (( pg_version < 90600 )); then
 					die "unable to perform a base backup on a server in recovery mode. Aborting"
 				fi
 
 				# We use a coprocess for non-exclusive backups, the feature is
 				# available in bash 4 and later.
-				if (( ${BASH_VERSINFO[0]} < 4 )); then
+				if (( BASH_VERSINFO[0] < 4 )); then
 					die "bash version is too old to perform a non-exclusive backup from a standby server. Aborting"
 				else
 					info "performing backup from hot standby server"
@@ -1475,7 +1474,7 @@ case $action in
 		# get list of tablespaces is different.
 
 		# Ask PostgreSQL the list of tablespaces
-		if (( $pg_version >= 90200 )); then
+		if (( pg_version >= 90200 )); then
 			"${psql_command[@]}" -Atc "SELECT spcname, pg_tablespace_location(oid), oid, pg_size_pretty(pg_tablespace_size(oid)) FROM pg_tablespace;" -- "$psql_condb" > "$tblspc_list"
 			rc=$?
 		else
@@ -1493,7 +1492,7 @@ case $action in
 		# Starting from 9.6, PostgreSQL support concurrent base backups, those
 		# are names non-exclusive backups. The older behaviour of exclusive
 		# backups may be deprecated.
-		if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
+		if (( pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
 			info "performing a non-exclusive backup"
 			# When taking a base backup in non-exclusive mode, the session
 			# that issues the call to pg_start_backup() must stay connected
@@ -1505,13 +1504,13 @@ case $action in
 				die_and_hook "could not create temporary file"
 			fi
 
-			coproc ${psql_command[@]} -At $psql_condb 2>$psql_stderr
+			coproc "${psql_command[@]}" -At "${psql_condb 2}">"${psql_stderr}"
 
 			get_psql_output() {
 				# First wait for output to be ready on the fd. When there is
 				# an error, no output go to the fd
 				while ! read -t 0 -u ${COPROC[0]}; do
-					if ! grep -E "^(ERROR|FATAL)" $psql_stderr >/dev/null 2>&1; then
+					if ! grep -E "^(ERROR|FATAL)" "${psql_stderr}" >/dev/null 2>&1; then
 						sleep 1
 					else
 						return 1
@@ -1525,12 +1524,12 @@ case $action in
 				while read -t 1 -u ${COPROC[0]} line; do
 					[ -n "$line" ] && ret_str="$ret_str$line|"
 				done
-				echo -n $ret_str | sed 's/|$//'
+				echo -n "${ret_str}" | sed 's/|$//'
 				return 0
 			}
 
 			check_psql_stderr() {
-				if grep -E "^(ERROR|FATAL)" $psql_stderr >/dev/null 2>&1; then
+				if grep -E "^(ERROR|FATAL)" "${psql_stderr}" >/dev/null 2>&1; then
 					return 1
 				else
 					return 0
@@ -1538,16 +1537,14 @@ case $action in
 			}
 
 			# Check if the connection works by getting the pid of the backend
-			echo 'select pg_backend_pid();' >&${COPROC[1]} # 2>/dev/null
-			if [ $? != 0 ]; then
+			if ! echo 'select pg_backend_pid();' >&${COPROC[1]}; then # 2>/dev/null
 				check_psql_stderr || cat $psql_stderr
 				die_and_hook "could not check connection to PostgreSQL"
 			fi
 			psql_pid=$(get_psql_output)
 
 			# Start the base backup
-			echo "select pg_start_backup('${label_text}', true, false);"  >&${COPROC[1]}
-			if [ $? != 0 ]; then
+			if ! echo "select pg_start_backup('${label_text}', true, false);"  >&"${COPROC[1]}"; then
 				check_psql_stderr || cat $psql_stderr
 				die_and_hook "could not start backup process (command sending)"
 			fi
@@ -4185,8 +4182,7 @@ case $action in
 		info "==> checking \$PGDATA"
 		if [ -n "$pgdata" ]; then
 			if [ -n "$data_directory" ]; then
-				test "$pgdata" -ef "$data_directory"
-				if [ $? != 0 ]; then
+				if test "${pgdata}" -ef "${data_directory}"; then
 					info "data_directory setting is: $data_directory"
 					info "PGDATA is: $pgdata"
 					die "configured PGDATA is different than the data directory reported by PostgreSQL"
@@ -4242,7 +4238,7 @@ case $action in
 
 			info "checking GPG encryption"
 			echo "test" | "${gpg_command[@]}" > /dev/null
-			rc=(${PIPESTATUS[*]})
+			rc=("${PIPESTATUS[*]}")
 			gpg_rc=${rc[1]}
 			if [ "$gpg_rc" != 0 ]; then
 				die "failed to check GPG encryption. command line:" "${gpg_command[@]}"
@@ -4283,7 +4279,7 @@ case $action in
 #PGDATABASE="postgres"
 
 # Command line to invoke psql.
-#PGPSQL="$PGPSQL"
+#PGPSQL="${PGPSQL}"
 
 # Target owner of the files when restoring with a different user
 # (e.g. one may need to restore as root to create some missing
@@ -4540,13 +4536,13 @@ EOF
 			if [ -w "$(dirname -- "$output")" ]; then
 				if [ -n "$conffile" ]; then
 					cp -- "$conffile" "$output" || die "Could not write $output"
-					rm -- $conffile
+					rm -- "${conffile}"
 				fi
 			else
 				die "Could not write $output: directory is not writable"
 			fi
 		else
-			[ -n "$conffile" ] && rm -- $conffile
+			[ -n "${conffile}" ] && rm -- "${conffile}"
 		fi
 		;;
 
